@@ -1,0 +1,185 @@
+---
+title: "Direct SVM"
+output: html_notebook
+---
+
+
+```{r}
+# Creating Training data dataframe
+library(dplyr)
+dexter_train <- read.delim("~/R/dexter_train.data", header=FALSE)
+d <- data.frame(dexter_train)
+train_df <- data.frame(matrix(0,ncol = 20000, nrow = 300))
+cols = c(1:20000)
+colnames(train_df) = cols
+```
+
+```{r}
+for (i in c(1:300)){
+  x<-d %>% slice(i)
+  x<-paste(unlist(x),collapse = " ")
+  x<-unlist(strsplit(x," "))
+  for (val in x){
+    val<- unlist(strsplit(val,":"))
+    train_df[i,val[1]] = val[2]
+  }
+}
+train_df <- as.data.frame(sapply(train_df, as.numeric))
+```
+
+```{r}
+head(train_df)
+```
+
+```{r}
+dexter_train_labels <- read.table("~/R/dexter_train.labels", quote="\"", comment.char="")
+dt1 <- data.frame(dexter_train_labels)
+dt1<-as.numeric(unlist(dt1))
+dt1
+```
+
+```{r}
+#Validation data dataframe
+dexter_val <- read.delim("~/R/dexter_valid.data", header=FALSE)
+dval <- data.frame(dexter_val)
+val_df <- data.frame(matrix(0,ncol = 20000, nrow = 300))
+cols = c(1:20000)
+colnames(val_df) = cols
+```
+
+
+```{r}
+for (i in c(1:300)){
+  x<-dval %>% slice(i)
+  x<-paste(unlist(x),collapse = " ")
+  x<-unlist(strsplit(x," "))
+  for (val in x){
+    val<- unlist(strsplit(val,":"))
+    val_df[i,val[1]] = val[2]
+  }
+}
+val_df <- as.data.frame(sapply(val_df, as.numeric))
+```
+
+
+```{r}
+dexter_val_labels <- read.table("~/R/dexter_valid.labels", quote="\"", comment.char="")
+dt2 <- data.frame(dexter_val_labels)
+dt2<-as.numeric(unlist(dt2))
+```
+
+
+```{r}
+# SVM using Linear kernel
+library(e1071)
+svm.linear<-svm(y=dt1, x=train_df, kernel='linear', cost=0.1, scale=FALSE)
+summary(svm.linear)
+
+svm.linear.pred = predict(svm.linear, val_df)
+svm.linear.pred = ifelse(svm.linear.pred<0, -1, 1)
+
+cm <- table(svm.linear.pred, dt2)
+cm
+svm.linear.accuracy <- (cm[1,1] + cm[2,2])/(cm[1,1] + cm[1,2] + cm[2,1] + cm[2,2])
+svm.linear.accuracy
+
+misclass.rate.linear <- mean(svm.linear.pred!=dt2)*100
+misclass.rate.linear
+```
+
+```{r}
+# SVM using radial kernel
+svm.radial <- svm(y=dt1, x=train_df, kernel='radial', cost=0.1, scale=FALSE)
+summary(svm.radial)
+
+svm.radial.pred = predict(svm.radial, val_df)
+svm.radial.pred = ifelse(svm.radial.pred<0, -1, 1)
+
+cm <- table(svm.radial.pred, dt2)
+cm
+
+svm.radial.accuracy <- (cm[1,1])/(cm[1,1] + cm[1,2])
+svm.radial.accuracy
+
+misclass.rate.radial <- mean(svm.radial.pred!=dt2)*100
+misclass.rate.radial
+```
+
+Experiment:
+Consider a grid space of (C,$\gamma$) with $\log_2$ C $\epsilon$ {−5,−3,...,15} and $\log_2 \gamma \epsilon$ {−15,−13,...,3}.
+For each hyperparameter pair (C,$\gamma$) in the search space, conduct 5-fold cross validation on the training set. 
+Choose the parameter (C,$\gamma$) that leads to the lowest CV balanced error rate. 
+Use the best parameter to create a model as the predictor.
+
+```{r}
+library('tidyverse')
+library('caret')
+```
+
+```{r}
+# cross validation
+# dt1.matrix <- data.matrix(dexter_train_labels)
+# ctrl <- trainControl(method = "cv", savePred = T, classProb = T)
+# mod <- train(y = dt1.matrix, x=train_df, method = "svmLinear", trControl = ctrl)
+#head(mod$pred)
+```
+
+
+```{r}
+# in creating the folds we specify the target feature (dependent variable) and # of folds
+# folds = createFolds(train_df, k = 5)
+# # in cv we are going to applying a created function to our 'folds'
+# cv = lapply(folds, function(x) { # start of function
+#   # in the next two lines we will separate the Training set into it's 10 pieces
+#   training_fold = train_df[-x, ] # training fold =  training set minus (-) it's sub test fold
+#   test_fold = train_df[x, ] # here we describe the test fold individually
+#   # now apply (train) the classifer on the training_fold
+#   classifier = svm(formula = dt1~.,
+#                    data = training_fold,
+#                    type = 'C-classification',
+#                    kernel = 'radial')
+#   # next step in the loop, we calculate the predictions and cm and we equate the accuracy
+#   # note we are training on training_fold and testing its accuracy on the test_fold
+#   y_pred = predict(classifier, newdata = dt2)
+#   cm = table(dt2, y_pred)
+#   accuracy = (cm[1,1] + cm[2,2]) / (cm[1,1] + cm[2,2] + cm[1,2] + cm[2,1])
+#   return(accuracy)
+# })
+```
+
+
+```{r}
+# function for SVM classifier
+svm.classifier <- function(C, g) {
+  classifier <- svm(y=dt1, x=train_df, kernel='radial', cost = C, gamma = g, scale = FALSE)
+  message('classified')
+  print(summary(classifier))
+  
+  classifier.pred = predict(classifier, val_df)
+  classifier.pred = ifelse(classifier.pred<0, -1, 1)
+
+  cm <- table(classifier.pred, dt2)
+  print(cm)
+  # classifier.accuracy <- (cm[1,1])/(cm[1,1] + cm[1,2])
+  # print(paste0("Classifier accuracy= ", classifier.accuracy))
+  
+  misclass.rate <- mean(classifier.pred!=dt2)*100
+  print(misclass.rate)
+  
+  
+}
+
+C_list <- list(2^-3, 2^-1, 2, 2^3)
+gamma_list <- list(2^-13, 2^-11, 2^-9, 2^-7)
+
+
+for (C in C_list) {
+   for (g in gamma_list){
+      print(paste0("C= ", C))
+      print(paste0("gamma= ", g))
+      svm.classifier(C, g)
+    }
+}
+
+```
+
