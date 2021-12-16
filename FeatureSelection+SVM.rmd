@@ -1,0 +1,86 @@
+---
+title: "Feature Selection + SVM"
+output: html_document
+---
+
+```{r}
+# Creating Training data dataframe
+library(dplyr)
+dexter_train <- read.delim("~/R/dexter_train.data", header=FALSE)
+d <- data.frame(dexter_train)
+train_df <- data.frame(matrix(0,ncol = 20000, nrow = 300))
+cols = c(1:20000)
+colnames(train_df) = cols
+```
+
+```{r}
+for (i in c(1:300)){
+  x<-d %>% slice(i)
+  x<-paste(unlist(x),collapse = " ")
+  x<-unlist(strsplit(x," "))
+  for (val in x){
+    val<- unlist(strsplit(val,":"))
+    train_df[i,val[1]] = val[2]
+  }
+}
+train_df <- as.data.frame(sapply(train_df, as.numeric))
+```
+
+```{r}
+head(train_df)
+```
+```{r}
+dexter_train_labels <- read.table("~/R/dexter_train.labels", quote="\"", comment.char="")
+dt_labels <- data.frame(dexter_train_labels)
+dt1<-as.numeric(unlist(dt_labels))
+dt1
+```
+
+```{r}
+#Validation data dataframe
+dexter_val <- read.delim("~/R/dexter_valid.data", header=FALSE)
+dval <- data.frame(dexter_val)
+val_df <- data.frame(matrix(0,ncol = 20000, nrow = 300))
+cols = c(1:20000)
+colnames(val_df) = cols
+```
+
+```{r}
+for (i in c(1:300)){
+  x<-dval %>% slice(i)
+  x<-paste(unlist(x),collapse = " ")
+  x<-unlist(strsplit(x," "))
+  for (val in x){
+    val<- unlist(strsplit(val,":"))
+    val_df[i,val[1]] = val[2]
+  }
+}
+val_df <- as.data.frame(sapply(val_df, as.numeric))
+```
+
+```{r}
+dexter_val_labels <- read.table("~/R/dexter_valid.labels", quote="\"", comment.char="")
+dt2 <- data.frame(dexter_val_labels)
+dt2<-as.numeric(unlist(dt2))
+```
+
+```{r}
+library(mlbench)
+library(caret)
+```
+
+
+```{r}
+# prepare training scheme
+set.seed(123)
+control <- trainControl(method="repeatedcv", number=10, repeats=3)
+# train the model
+model <- train(dt1~V1, data=dexter_train, 'svmLinear3', preProcess="scale", trControl=control)
+# estimate variable importance
+importance <- varImp(model, scale=FALSE)
+# summarize importance
+print(importance)
+# plot importance
+plot(importance)
+```
+
