@@ -7,7 +7,7 @@ output: html_notebook
 # Creating Training data dataframe
 library(plyr)
 library(dplyr)
-dexter_train <- read.delim("~/R/dexter_train.data", header=FALSE)
+dexter_train <- read.delim("/dexter_train.txt", header=FALSE)
 d <- data.frame(dexter_train)
 train_df <- data.frame(matrix(0,ncol = 20000, nrow = 300))
 cols = c(1:20000)
@@ -86,10 +86,10 @@ train_df = train_df[selected_features]
 ```{r}
 # Forward stepwise selection
 #define intercept-only model
-intercept_only <- lm(dexter_train_labels ~ 1, data=train_df)
+intercept_only <- lm(dt1 ~ 1, data=train_df)
 
 #define model with all predictors
-all <- lm(dexter_train_labels~ ., data=train_df)
+all <- lm(dt1~ ., data=train_df)
 
 forward <- step(intercept_only, direction='forward', scope=formula(all), trace=0)
 forward$anova
@@ -106,5 +106,8 @@ backward <- step(all, direction='backward', scope=formula(all), trace=0)
 
 #view results of backward stepwise regression
 backward$anova
+```
+```{r}
+backward$coefficients
 ```
 
