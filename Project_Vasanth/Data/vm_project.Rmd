@@ -7,7 +7,7 @@ output: html_notebook
 ```{r}
 # Training data dataframe
 library(dplyr)
-dexter_train <- read.delim("~/Desktop/Acads/Stat Learning/Project/Data/dexter_train.txt", header=FALSE)
+dexter_train <- read.delim("dexter_train.txt", header=FALSE)
 d <- data.frame(dexter_train)
 train_df <- data.frame(matrix(0,ncol = 20000, nrow = 300))
 cols = c(1:20000)
@@ -31,7 +31,7 @@ train_df <- as.data.frame(sapply(train_df, as.numeric))
 
 ```{r}
 #Validation data dataframe
-dexter_val <- read.delim("~/Desktop/Acads/Stat Learning/Project/Data/dexter_valid.txt", header=FALSE)
+dexter_val <- read.delim("dexter_valid.txt", header=FALSE)
 dval <- data.frame(dexter_val)
 val_df <- data.frame(matrix(0,ncol = 20000, nrow = 300))
 cols = c(1:20000)
@@ -55,12 +55,35 @@ val_df <- as.data.frame(sapply(val_df, as.numeric))
 
 
 ```{r}
-dexter_train_labels <- read.table("~/Desktop/Acads/Stat Learning/Project/Data/dexter_train_labels.txt", quote="\"", comment.char="")
-dexter_val_labels <- read.table("~/Desktop/Acads/Stat Learning/Project/Data/dexter_valid_labels.txt", quote="\"", comment.char="")
+dexter_train_labels <- read.table("dexter_train_labels.txt", quote="\"", comment.char="")
+dexter_val_labels <- read.table("dexter_valid_labels.txt", quote="\"", comment.char="")
 dt1 <- data.frame(dexter_train_labels)
 dt2 <- data.frame(dexter_val_labels)
 dt1<-as.numeric(unlist(dt1))
 dt2<-as.numeric(unlist(dt2))
+```
+
+
+```{r}
+#Random Forest Classifier on complete dataset
+library(randomForest)
+dt1<- ifelse(dt1<1,0,1)
+dt2<- ifelse(dt2<1,0,1)
+rf<- randomForest(y = dt1,x = train_df, mtry=8,ntree=200)
+yhat = predict(rf, newdata = val_df)
+yhat = ifelse(yhat<=0.5,0,1)
+table(yhat,dt2)
+```
+
+
+```{r}
+#SVM on complete dataset 
+library(e1071)
+svmfit<-svm(y=dt1,x=train_df,kernel='linear',cost=0.1,scale=FALSE)
+yhat1 = predict(svmfit,val_df)
+yhat1 = ifelse(yhat1<0.5,0,1)
+table(yhat1,dt2)
+
 ```
 
 
@@ -71,17 +94,25 @@ grid = 10^seq(10,-2,length=100)
 lasso.mod = glmnet(train_df,dt1,alpha=1, lambda = grid)
 cv.out = cv.glmnet(as.matrix(train_df),dt1,alpha=1)
 selected_features = c(which(!coef(cv.out, s = "lambda.min")==0))
-train_df = train_df[selected_features]
+```
+
+```{r}
+#Optimal lambda
+plot(cv.out)
+```
+```{r}
+# Coefficient paths
+plot(cv.out$glmnet.fit, "lambda", label=FALSE)
 ```
 
 
 ```{r}
 # lambda.1se is the value of 𝜆 that gives the most regularized model such that the cross-validated error is within one standard error of the minimum.
-
-which(!coef(cv.out, s = "lambda.min")==0)
+#which(!coef(cv.out, s = "lambda.min")==0)
+length(selected_features)
 ```
-
 ```{r}
+train_df = train_df[selected_features]
 val_df = val_df[selected_features]
 ```
 
@@ -90,13 +121,18 @@ val_df = val_df[selected_features]
 library(randomForest)
 dt1<- ifelse(dt1<1,0,1)
 dt2<- ifelse(dt2<1,0,1)
-rf<- randomForest(y = dt1,x = train_df, mtry=8,ntree=200)
+rf<- randomForest(y = dt1,x = train_df, mtry=10,ntree=200)
 yhat = predict(rf, newdata = val_df)
 yhat = ifelse(yhat<=0.5,0,1)
 table(yhat,dt2)
 ```
+
 ```{r}
-# 57.66% accuracy.
+# BER = 0.43. AUC = 0.51. Misclassification rate = 0.43
+```
+
+```{r}
+
 ```
 
 ```{r}
@@ -106,9 +142,18 @@ svmfit<-svm(y=dt1,x=train_df,kernel='linear',cost=0.1,scale=FALSE)
 yhat1 = predict(svmfit,val_df)
 yhat1 = ifelse(yhat1<0.5,0,1)
 table(yhat1,dt2)
+```
 
-```
 ```{r}
-# Picking the optimal value of cost gives us 56% accuracy.
+# BER = 0.42. AUC = 0.52. Misclassification rate = 0.45
 ```
+
+```{r}
+library(pROC)
+roc_obj1 <- roc(dt1, yhat)
+roc_obj2 <- roc(dt1, yhat1)
+auc(roc_obj1)
+auc(roc_obj2)
+```
+
 
