@@ -1,0 +1,219 @@
+---
+title: "RF + NN"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+
+```{r}
+# Creating Training data dataframei
+library(dplyr)
+dexter_train <- read.delim("/Users/saravanang/Downloads/dexter/dexter_train.data", header=FALSE)
+d <- data.frame(dexter_train)
+train_df <- data.frame(matrix(0,ncol = 20000, nrow = 300))
+cols = c(1:20000)
+colnames(train_df) = cols
+```
+
+```{r}
+for (i in c(1:300)){
+  x<-d %>% slice(i)
+  x<-paste(unlist(x),collapse = " ")
+  x<-unlist(strsplit(x," "))
+  for (val in x){
+    val<- unlist(strsplit(val,":"))
+    train_df[i,val[1]] = val[2]
+  }
+}
+train_df <- as.data.frame(sapply(train_df, as.numeric))
+```
+
+```{r}
+head(train_df)
+```
+
+```{r}
+dexter_train_labels <- read.table("/Users/saravanang/Downloads/dexter/dexter_train.labels", quote="\"", comment.char="")
+dt1 <- data.frame(dexter_train_labels)
+dt1<-as.numeric(unlist(dt1))
+dt1
+```
+
+```{r}
+#Validation data dataframe
+dexter_val <- read.delim("/Users/saravanang/Downloads/dexter/dexter_valid.data", header=FALSE)
+dval <- data.frame(dexter_val)
+val_df <- data.frame(matrix(0,ncol = 20000, nrow = 300))
+cols = c(1:20000)
+colnames(val_df) = cols
+```
+
+
+```{r}
+for (i in c(1:300)){
+  x<-dval %>% slice(i)
+  x<-paste(unlist(x),collapse = " ")
+  x<-unlist(strsplit(x," "))
+  for (val in x){
+    val<- unlist(strsplit(val,":"))
+    val_df[i,val[1]] = val[2]
+  }
+}
+val_df <- as.data.frame(sapply(val_df, as.numeric))
+```
+
+
+```{r}
+dexter_val_labels <- read.table("/Users/saravanang/Downloads/dexter/dexter_valid.labels", quote="\"", comment.char="")
+dt2 <- data.frame(dexter_val_labels)
+dt2<-as.numeric(unlist(dt2))
+```
+
+```{r}
+dt2
+```
+
+```{r}
+# function for SVM
+library(randomForest)
+library(varImp)
+
+randomForest.classifier <- function(N_tree) {
+  classifier <-randomForest(y=dt1, x=train_df, n_trees=N_tree)
+  message('classified')
+  # print(summary(classifier))
+  
+  message('Training....')
+  #training results 
+  classifier.pred = predict(classifier, train_df)
+  classifier.pred = ifelse(classifier.pred<0, -1, 1)
+  cm <- table(classifier.pred, dt1)
+  print(cm)
+  misclass.rate <- mean(classifier.pred!=dt1)*100
+  classifier.accuracy <- (cm[1,1])/(cm[1,1] + cm[1,2])
+  print(paste0("missclassification rate = ", misclass.rate))
+  print(paste0("Classifier accuracy= ", classifier.accuracy))
+  
+  message('Validation.....')
+  classifier.pred = predict(classifier, val_df)
+  classifier.pred = ifelse(classifier.pred<0, -1, 1)
+  cm <- table(classifier.pred, dt2)
+  classifier.accuracy <- (cm[1,1])/(cm[1,1] + cm[1,2])
+  print(cm)
+  misclass.rate <- mean(classifier.pred!=dt2)*100
+  print(paste0("missclassification rate = ", misclass.rate))
+    print(paste0("Classifier accuracy= ", classifier.accuracy))
+
+}
+
+n_trees_list <- list(5, 10, 50, 100, 1000)
+
+for (n_tree in n_trees_list) {
+      print(paste0("n_tree= ", n_tree))
+      randomForest.classifier(n_tree)
+    }
+
+
+```
+
+
+```{r}
+
+#implement MLP 
+library(deepnet)
+
+hidden_units  = c(1, 10, 100, 500, 1000)
+#hidden_units = c(1,2 )
+testing_accuracy = list() 
+misclassification_rate = list()
+
+
+
+dt1[dt1==-1]= 0
+
+for (hidden_unit in hidden_units){
+nn <- nn.train(x=as.matrix(train_df), 
+                         y=dt1, 
+                         hidden=hidden_unit, 
+                         numepochs=40)
+
+classifier.pred = nn.predict(nn, as.matrix(train_df))
+print(head(classifier.pred))
+classifier.pred = ifelse(classifier.pred<0.5, 0, 1)
+cm <- table(classifier.pred, dt1)
+print(cm)
+misclass.rate <- mean(classifier.pred!=dt1)*100
+classifier.accuracy <- (cm[1,1])/(cm[1,1] + cm[1,2])
+print(paste0("missclassification rate = ", misclass.rate))
+  print(paste0("Classifier accuracy= ", classifier.accuracy))
+  
+  message('Validation.....')
+  classifier.pred = nn.predict(nn, as.matrix(val_df))
+  classifier.pred = ifelse(classifier.pred<0.5, 0, 1)
+  cm <- table(classifier.pred, dt2)
+  classifier.accuracy <- (cm[1,1])/(cm[1,1] + cm[1,2])
+  testing_accuracy<-append(testing_accuracy, classifier.accuracy )
+  print(cm)
+  misclass.rate <- mean(classifier.pred!=dt2)*100
+  print(paste0("missclassification rate = ", misclass.rate))
+    misclassification_rate <- append(misclassification_rate, misclass.rate)
+
+    print(paste0("Classifier accuracy= ", classifier.accuracy))
+}
+```
+```{r}
+plot(hidden_units, misclassification_rate, type='o', main="hidden_units vs misclassification_rate")
+plot(hidden_units, testing_accuracy, type='o', main="hidden_units vs accuracy")
+  
+```
+```{r}
+#implement MLP 
+library(deepnet)
+
+hidden_units  =list(c(64), c(64, 64), c(64, 64, 64), c(64, 64, 64, 64))
+#hidden_units = c(1,2 )
+testing_accuracy = list() 
+misclassification_rate = list()
+
+
+
+dt1[dt1==-1]= 0
+
+for (hidden_unit in hidden_units){
+nn <- nn.train(x=as.matrix(train_df), 
+                         y=dt1, 
+                         hidden=hidden_unit, 
+                         numepochs=40)
+
+classifier.pred = nn.predict(nn, as.matrix(train_df))
+print(head(classifier.pred))
+classifier.pred = ifelse(classifier.pred<0.5, 0, 1)
+cm <- table(classifier.pred, dt1)
+print(cm)
+misclass.rate <- mean(classifier.pred!=dt1)*100
+classifier.accuracy <- (cm[1,1])/(cm[1,1] + cm[1,2])
+print(paste0("missclassification rate = ", misclass.rate))
+  print(paste0("Classifier accuracy= ", classifier.accuracy))
+  
+  message('Validation.....')
+  classifier.pred = nn.predict(nn, as.matrix(val_df))
+  classifier.pred = ifelse(classifier.pred<0.5, 0, 1)
+  cm <- table(classifier.pred, dt2)
+  classifier.accuracy <- (cm[1,1])/(cm[1,1] + cm[1,2])
+  testing_accuracy<-append(testing_accuracy, classifier.accuracy )
+  print(cm)
+  misclass.rate <- mean(classifier.pred!=dt2)*100
+  print(paste0("missclassification rate = ", misclass.rate))
+    misclassification_rate <- append(misclassification_rate, misclass.rate)
+
+    print(paste0("Classifier accuracy= ", classifier.accuracy))
+}
+```
+
+```{r}
+#plot(hidden_units, misclassification_rate, type='o', main="hidden_units vs misclassification_rate")
+hidden_layers = c(1,2,3,4)
+plot(hidden_layers, testing_accuracy, type='o', main="# of hidden layers vs accuracy")
+```
+  
